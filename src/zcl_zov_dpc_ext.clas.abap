@@ -113,11 +113,53 @@ CLASS ZCL_ZOV_DPC_EXT IMPLEMENTATION.
   endmethod.
 
 
-  method OVCABSET_GET_ENTITY.
-    er_entity-ordemid = 1.
-    er_entity-criadopor = 'Marcos'.
-    er_entity-datacriacao = '19700101000000'.
-  endmethod.
+  METHOD ovcabset_get_entity.
+    DATA: ld_ordemid TYPE zovcab-ordemid.
+    DATA: ls_key_tab LIKE LINE OF it_key_tab.
+    DATA: ls_cab TYPE zovcab.
+
+    DATA(lo_msg) = me->/iwbep/if_mgw_conv_srv_runtime~get_message_container( ).
+
+    READ TABLE it_key_tab INTO ls_key_tab WITH KEY name = 'OrdemId'.
+    IF sy-subrc <> 0.
+      lo_msg->add_message_text_only(
+        EXPORTING
+          iv_msg_type = 'E'
+          iv_msg_text = 'Id da ordem não informado'
+      ).
+
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
+        EXPORTING
+          message_container = lo_msg.
+    ENDIF.
+    ld_ordemid = ls_key_tab-value.
+
+    SELECT SINGLE *
+      INTO ls_cab
+      FROM zovcab
+      WHERE ordemid = ld_ordemid.
+
+    IF sy-subrc = 0.
+      MOVE-CORRESPONDING ls_cab TO er_entity.
+
+      er_entity-criadopor = ls_cab-criacao_usuario.
+
+      CONVERT DATE ls_cab-criacao_data
+              TIME ls_cab-criacao_hora
+          INTO TIME STAMP er_entity-datacriacao
+          TIME ZONE sy-zonlo.
+    ELSE.
+      lo_msg->add_message_text_only(
+        EXPORTING
+          iv_msg_type = 'E'
+          iv_msg_text = 'Id da ordem não encontrado'
+      ).
+
+      RAISE EXCEPTION TYPE /iwbep/cx_mgw_busi_exception
+        EXPORTING
+          message_container = lo_msg.
+    ENDIF.
+  ENDMETHOD.
 
 
   method OVCABSET_GET_ENTITYSET.
@@ -190,6 +232,49 @@ CLASS ZCL_ZOV_DPC_EXT IMPLEMENTATION.
 
 
   method OVITEMSET_GET_ENTITY.
+    DATA: ls_key_tab LIKE LINE OF it_key_tab.
+    DATA: ls_item type zovitem.
+    DATA: ld_error TYPE flag.
+
+    DATA(lo_msg) = me->/iwbep/if_mgw_conv_srv_runtime~get_message_container( ).
+
+    READ TABLE it_key_tab INTO ls_key_tab WITH KEY name = 'OrdemId'.
+    IF sy-subrc <> 0.
+      ld_error = 'X'.
+      lo_msg->add_message_text_only(
+        EXPORTING
+          iv_msg_type = 'E'
+          iv_msg_text = 'Id da ordem não informado'
+      ).
+    ENDIF.
+    ls_item-ordemid = ls_key_tab-value.
+
+    READ TABLE it_key_tab INTO ls_key_tab WITH KEY name = 'ItemId'.
+    IF sy-subrc <> 0.
+      ld_error = 'X'.
+      lo_msg->add_message_text_only(
+        EXPORTING
+          iv_msg_type = 'E'
+          iv_msg_text = 'Id do item não informado'
+      ).
+    ENDIF.
+    ls_item-itemid = ls_key_tab-value.
+
+    IF ld_error = 'X'.
+      RAISE EXCEPTION type  /iwbep/cx_mgw_busi_exception
+        EXPORTING
+          message_container = lo_msg.
+    ENDIF.
+
+    select SINGLE *
+      INTO ls_item
+      FROM zovitem
+      WHERE ordemid = ls_item-ordemid
+        AND itemid = ls_item-itemid.
+
+      IF sy-subrc = 0.
+        MOVE-CORRESPONDING ls_item to er_entity.
+      ENDIF.
   endmethod.
 
 
